@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Settings · GoodSkrapper{% endblock %}
+{% block content %}
+<h2>Active configuration</h2>
+<p class="muted">Loaded from <code>{{ config_path }}</code>. Secrets are masked. Edit the file and restart the services
+(<code>sudo systemctl restart goodskrapper-worker goodskrapper-dashboard</code>) to apply changes.</p>
+<pre>{{ config_text }}</pre>
+{% endblock %}

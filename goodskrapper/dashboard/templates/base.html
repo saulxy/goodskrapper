@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}GoodSkrapper{% endblock %}</title>
+<style>
+  :root { --bg:#0f1419; --panel:#182029; --line:#2a3542; --text:#e6edf3; --muted:#8b98a5;
+          --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  a { color:#7cb3ff; text-decoration:none; } a:hover { text-decoration:underline; }
+  header { display:flex; align-items:center; gap:18px; padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header .brand { font-weight:700; font-size:17px; color:var(--text); }
+  header nav a { margin-right:14px; }
+  main { padding:16px 18px; max-width:1500px; margin:0 auto; }
+  .cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:130px; }
+  .card b { display:block; font-size:20px; }
+  .card span { color:var(--muted); font-size:12px; }
+  form.inline { display:inline; }
+  input, select, textarea { background:#0b1016; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  textarea { width:100%; min-height:80px; }
+  button, .btn { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; display:inline-block; }
+  .btn.secondary, button.secondary { background:#334155; }
+  .btn.danger, button.danger { background:var(--bad); }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; white-space:nowrap; }
+  th a { color:var(--muted); }
+  tr:hover td { background:#1d2732; }
+  td.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  td img { width:52px; height:52px; object-fit:cover; border-radius:4px; background:#000; }
+  .title-cell { max-width:420px; }
+  .muted { color:var(--muted); font-size:12px; }
+  .pill { padding:2px 8px; border-radius:999px; font-size:12px; background:#334155; white-space:nowrap; }
+  .pct-good { color:var(--ok); font-weight:700; } .pct-mid { color:var(--warn); font-weight:600; } .pct-bad { color:var(--bad); }
+  .urgent { color:var(--bad); font-weight:700; }
+  .flash { padding:8px 12px; border-radius:6px; margin-bottom:10px; }
+  .flash.ok { background:#14532d; } .flash.error { background:#7f1d1d; }
+  .pager { margin-top:10px; display:flex; gap:8px; align-items:center; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .grid label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
+  .grid label input, .grid label select { color:var(--text); font-size:14px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:14px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  pre { background:#0b1016; padding:12px; border-radius:8px; overflow:auto; border:1px solid var(--line); }
+  @media (max-width: 800px) { .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">🛒 GoodSkrapper</a>
+  <nav>
+    <a href="{{ url_for('index') }}">Items</a>
+    <a href="{{ url_for('item_new') }}">+ Add item</a>
+    <a href="{{ url_for('settings') }}">Settings</a>
+  </nav>
+</header>
+<main>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[Unit]
+Description=GoodSkrapper worker (ShopGoodwill scraper + Telegram alerts)
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__DIR__/.venv/bin/python -m goodskrapper -c __DIR__/config.yaml worker
+Restart=always
+RestartSec=30
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

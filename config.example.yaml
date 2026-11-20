@@ -1,0 +1,136 @@
+# =====================================================================
+#  GoodSkrapper configuration
+#  Copy this file to config.yaml and edit it:   cp config.example.yaml config.yaml
+#  Secrets can also be provided by environment variables (see README).
+# =====================================================================
+
+general:
+  timezone: "America/New_York"     # Used to display times in Telegram and the dashboard
+  db_path: "data/goodskrapper.db"  # Relative paths are relative to this file
+  log_level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  log_file: ""                     # Empty = log to stdout/journald only (saves SD-card writes)
+
+# ---------------------------------------------------------------------
+#  Scraper (ShopGoodwill)
+# ---------------------------------------------------------------------
+scraper:
+  update_frequency_minutes: 30     # How often a full scrape of all targets runs
+  max_pages_per_search: 3          # 40 items per page, sorted by "ending soonest"
+  request_delay_seconds: 2.0       # Polite delay between requests to ShopGoodwill
+  only_ending_within_hours: 72     # Ignore auctions ending later than this (0 = no limit)
+  include_buy_now: true            # Also evaluate "Buy It Now" listings
+  exclude_pickup_only: true        # Skip items that cannot be shipped
+  zip_code: "10001"                # Your ZIP: used to get the real Goodwill shipping quote
+  fetch_real_shipping: true        # Ask Goodwill for the real S&H for promising items
+  default_shipping_estimate: 15.0  # USD, used when the real quote is unavailable
+  reevaluate_hours: 6              # Don't re-check a non-deal item with an unchanged price before this
+
+  # Words that disqualify an item (case-insensitive, matched against the title)
+  global_exclude_keywords: ["for parts", "not working", "broken", "repair", "empty box", "box only"]
+
+# ---------------------------------------------------------------------
+#  Targets: categories and/or keywords
+#   - keywords only          -> keyword search across all categories
+#   - categories only        -> browse those categories (ending soonest)
+#   - keywords + categories  -> each keyword searched inside those categories
+#  Run `python -m goodskrapper categories` to list category IDs.
+# ---------------------------------------------------------------------
+targets:
+  - name: "Video games"
+    enabled: true
+    keywords: ["nintendo switch", "gameboy advance", "ps2 games lot"]
+    categories: []
+    exclude_keywords: ["case only", "manual only"]
+    min_price: 5
+    max_price: 250
+    # target_profit_pct: 50        # Optional override of profit.target_profit_pct
+
+  - name: "Cameras & lenses"
+    enabled: true
+    keywords: ["canon lens", "nikon lens", "fujifilm"]
+    categories: []
+    min_price: 10
+    max_price: 400
+
+  - name: "Vintage electronics (category browse)"
+    enabled: false
+    keywords: []
+    categories: [12]               # Example ID - verify with the `categories` command
+    min_price: 5
+    max_price: 150
+
+# ---------------------------------------------------------------------
+#  Profit model
+#   profit      = eBay sale price - eBay fees - outbound shipping - total cost
+#   total cost  = bid * (1 + sales tax) + Goodwill shipping & handling
+#   profit %    = profit / total cost * 100
+# ---------------------------------------------------------------------
+profit:
+  target_profit_pct: 40            # Minimum ROI to be considered a deal
+  min_profit_usd: 10               # Also require at least this much absolute profit
+  sales_tax_pct: 0                 # Tax charged by Goodwill on your purchase
+  expected_final_price_multiplier: 1.0  # Project final auction price (e.g. 1.3 = +30%)
+  ebay_final_value_fee_pct: 13.6   # eBay final value fee (most categories)
+  ebay_fixed_fee: 0.40             # Per-order fixed fee
+  ebay_promoted_listing_pct: 0     # Ad rate if you promote listings
+  outbound_shipping_cost: 0        # Your shipping cost to the eBay buyer (0 if buyer pays)
+
+# ---------------------------------------------------------------------
+#  eBay price research
+#   provider: browse_api  -> official eBay Browse API (needs free developer keys,
+#                            https://developer.ebay.com). Uses ACTIVE listings, so the
+#                            price is multiplied by price_adjustment_factor.
+#   provider: sold_scrape -> parses eBay "sold items" search results. More accurate,
+#                            but eBay may block automated requests at any time.
+#   fallback_provider     -> used when the main provider fails ("" = none)
+# ---------------------------------------------------------------------
+ebay:
+  provider: "browse_api"
+  fallback_provider: "sold_scrape"
+  client_id: ""                    # eBay App ID (Client ID)
+  client_secret: ""                # eBay Cert ID (Client Secret)
+  marketplace_id: "EBAY_US"
+  condition: "used"                # used | new | any
+  price_adjustment_factor: 0.85    # Applied to browse_api prices (active asks > sold prices)
+  max_results: 50
+  min_comparables: 3               # Need at least N matching listings to trust a price
+  min_title_match: 0.6             # Share of query words that must appear in a comparable
+  query_max_words: 7               # Words of the Goodwill title used as the eBay query
+  cache_hours: 12                  # Re-use price lookups for the same query
+  request_delay_seconds: 1.0
+  exclude_comp_keywords: ["for parts", "broken", "not working", "read description", "lot of"]
+
+# ---------------------------------------------------------------------
+#  Internal database
+# ---------------------------------------------------------------------
+database:
+  retention_days: 14               # Items older than this (first seen) are deleted...
+  keep_statuses: ["watching", "bid_placed", "won", "sold"]  # ...unless they have one of these statuses
+
+# ---------------------------------------------------------------------
+#  Telegram (@GoodSkrapper_alert_bot)
+#   1. Add the bot to your private channel as an administrator (permission: Post messages).
+#   2. Post any message in the channel, then run:  python -m goodskrapper telegram-chat-id
+#   3. Copy the id (looks like -1001234567890) into chat_id.
+# ---------------------------------------------------------------------
+telegram:
+  enabled: true
+  bot_token: ""                    # From @BotFather, e.g. 123456789:AAE...
+  chat_id: ""                      # e.g. -1001234567890 (or @channel_username if public)
+  digest_interval_minutes: 60      # Hourly digest of new findings
+  urgent_threshold_hours: 8        # Alert ASAP when an auction ends within this window
+  urgent_check_minutes: 10         # How often to refresh prices of ending-soon items
+  max_items_per_digest: 25
+  send_empty_digest: false         # Send a "no new deals" message when nothing was found
+  urgent_with_photo: true          # Send urgent alerts as a photo with caption
+
+# ---------------------------------------------------------------------
+#  Dashboard
+# ---------------------------------------------------------------------
+dashboard:
+  host: "0.0.0.0"                  # 0.0.0.0 = reachable from your LAN
+  port: 8080
+  username: "admin"                # HTTP Basic auth. Leave both empty to disable (not recommended)
+  password: "change-me"
+  secret_key: "change-this-to-a-long-random-string"
+  page_size: 50

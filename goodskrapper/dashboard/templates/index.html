@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% macro sort_link(col, label) -%}
+  {%- set is_cur = args.get('sort', 'end_time') == col -%}
+  {%- set new_desc = '0' if (is_cur and args.get('desc') == '1') else ('1' if is_cur else '0') -%}
+  <a href="{{ url_for('index', q=args.get('q',''), status=args.get('status',''), active='1' if active else '0', deals=args.get('deals',''), sort=col, desc=new_desc) }}">{{ label }}{% if is_cur %}{{ ' ▼' if args.get('desc') == '1' else ' ▲' }}{% endif %}</a>
+{%- endmacro %}
+{% block content %}
+<div class="cards">
+  <div class="card"><b>{{ stats.total }}</b><span>Items in DB</span></div>
+  <div class="card"><b>{{ stats.active_deals }}</b><span>Active deals</span></div>
+  <div class="card"><b>{{ stats.watching }}</b><span>Watching</span></div>
+  <div class="card"><b>{{ stats.pending_notify }}</b><span>Pending Telegram</span></div>
+  <div class="card"><b>{{ stats.ended }}</b><span>Ended</span></div>
+  <div class="card">
+    <span>Last scrape</span>
+    <div>{{ local_time(last_scrape) if last_scrape else 'never' }}</div>
+    {% if last_stats %}<div class="muted">{{ last_stats.listings }} listings · {{ last_stats.new_deals }} new · {{ last_stats.seconds }}s</div>{% endif %}
+    <form class="inline" method="post" action="{{ url_for('run_now') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="secondary" {% if run_requested %}disabled{% endif %}>{{ 'Requested…' if run_requested else 'Run scrape now' }}</button>
+    </form>
+  </div>
+</div>
+
+<form class="filters" method="get">
+  <input name="q" placeholder="Search title, notes, ID…" value="{{ args.get('q','') }}">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {% if args.get('status') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="active">
+    <option value="1" {% if active %}selected{% endif %}>Active auctions</option>
+    <option value="0" {% if not active %}selected{% endif %}>Include ended</option>
+  </select>
+  <label><input type="checkbox" name="deals" value="1" {% if args.get('deals') == '1' %}checked{% endif %}> Deals only (≥ target)</label>
+  <input type="hidden" name="sort" value="{{ args.get('sort','end_time') }}">
+  <input type="hidden" name="desc" value="{{ args.get('desc','0') }}">
+  <button>Filter</button>
+  <a class="btn secondary" href="{{ url_for('index') }}">Reset</a>
+</form>
+
+<form method="post" action="{{ url_for('bulk') }}" id="bulk">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<input type="hidden" name="next" value="{{ request.full_path }}">
+<div class="filters">
+  <select name="action">
+    <option value="">Bulk action…</option>
+    {% for s in statuses %}<option value="status:{{ s }}">Set status: {{ s }}</option>{% endfor %}
+    <option value="renotify">Re-send to Telegram</option>
+    <option value="delete">Delete</option>
+  </select>
+  <button class="secondary" onclick="return this.form.action.value !== 'delete' || confirm('Delete selected items?')">Apply</button>
+  <span class="muted">{{ total }} item{{ '' if total == 1 else 's' }}</span>
+</div>
+<table>
+  <thead><tr>
+    <th><input type="checkbox" onclick="document.querySelectorAll('input[name=ids]').forEach(c=>c.checked=this.checked)"></th>
+    <th class="hide-sm"></th>
+    <th>{{ sort_link('title', 'Item') }}</th>
+    <th>{{ sort_link('current_price', 'Goodwill') }}</th>
+    <th class="hide-sm">Cost</th>
+    <th>{{ sort_link('ebay_price', 'eBay') }}</th>
+    <th>{{ sort_link('est_profit', 'Profit') }}</th>
+    <th>{{ sort_link('profit_pct', 'ROI') }}</th>
+    <th>{{ sort_link('max_bid', 'Max bid') }}</th>
+    <th>{{ sort_link('end_time', 'Ends') }}</th>
+    <th>{{ sort_link('status', 'Status') }}</th>
+  </tr></thead>
+  <tbody>
+  {% for it in items %}
+    {% set pct = it.profit_pct or 0 %}
+    {% set tl = time_left(it.end_time) %}
+    {% set hl = hours_left(it.end_time) %}
+    <tr>
+      <td><input type="checkbox" name="ids" value="{{ it.item_id }}"></td>
+      <td class="hide-sm">{% if it.image_url %}<a href="{{ it.url }}" target="_blank"><img src="{{ it.image_url }}" loading="lazy" alt=""></a>{% endif %}</td>
+      <td class="title-cell">
+        <a href="{{ url_for('item_edit', item_id=it.item_id) }}">{{ it.title }}</a>
+        <div class="muted">#{{ it.item_id }} · {{ it.target_name or it.source }} · <a href="{{ it.url }}" target="_blank">Goodwill ↗</a>{% if it.ebay_url %} · <a href="{{ it.ebay_url }}" target="_blank">eBay sold ↗</a>{% endif %}</div>
+      </td>
+      <td class="num">{{ money(it.buy_price or it.current_price) }}<div class="muted">{{ it.num_bids or 0 }} bids{% if it.listing_type == 'buy_now' %} · BIN{% endif %}</div></td>
+      <td class="num hide-sm">{{ money(it.total_cost) }}<div class="muted">S&amp;H {{ money(it.goodwill_shipping) }}{% if it.shipping_estimated %}*{% endif %}</div></td>
+      <td class="num">{{ money(it.ebay_price_manual or it.ebay_price) }}<div class="muted">{% if it.ebay_price_manual %}manual{% else %}{{ it.ebay_comps or 0 }} comps{% endif %}</div></td>
+      <td class="num">{{ money(it.est_profit) }}</td>
+      <td class="num {{ 'pct-good' if pct >= target_pct else ('pct-mid' if pct >= target_pct / 2 else 'pct-bad') }}">{{ it.profit_pct | pct }}</td>
+      <td class="num">{{ money(it.max_bid) }}</td>
+      <td class="num {{ 'urgent' if (hl is not none and 0 < hl < urgent_h) else '' }}">{{ tl }}<div class="muted">{{ local_time(it.end_time) }}</div></td>
+      <td><span class="pill">{{ it.status }}</span></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="11" class="muted" style="text-align:center;padding:30px">No items yet. The worker stores deals here after each scrape.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</form>
+
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn secondary" href="{{ url_for('index', page=page-1, q=args.get('q',''), status=args.get('status',''), active='1' if active else '0', deals=args.get('deals',''), sort=args.get('sort','end_time'), desc=args.get('desc','0')) }}">← Prev</a>{% endif %}
+  <span class="muted">Page {{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn secondary" href="{{ url_for('index', page=page+1, q=args.get('q',''), status=args.get('status',''), active='1' if active else '0', deals=args.get('deals',''), sort=args.get('sort','end_time'), desc=args.get('desc','0')) }}">Next →</a>{% endif %}
+</div>
+{% endif %}
+<p class="muted">* Goodwill shipping is an estimate (real quote not fetched). ROI target: {{ target_pct }}%.</p>
+{% endblock %}

@@ -1,0 +1,18 @@
+[Unit]
+Description=GoodSkrapper dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__DIR__/.venv/bin/python -m goodskrapper -c __DIR__/config.yaml dashboard
+Restart=always
+RestartSec=10
+Nice=5
+MemoryMax=200M
+
+[Install]
+WantedBy=multi-user.target

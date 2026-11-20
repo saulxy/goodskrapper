@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Add item' if is_new else item.title }} · GoodSkrapper{% endblock %}
+{% block content %}
+{% if is_new %}
+  <h2>Add item</h2>
+  <form method="post" class="panel">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="grid">
+      <label>ShopGoodwill item ID or URL *
+        <input name="item_ref" required placeholder="https://shopgoodwill.com/item/123456789" value="{{ request.form.get('item_ref','') }}">
+      </label>
+      <label>Fetch details from ShopGoodwill + price on eBay
+        <select name="fetch"><option value="1">Yes (recommended)</option><option value="0">No, enter manually</option></select>
+      </label>
+      <label>Title (required if not fetched)<input name="title" value="{{ item.title or '' }}"></label>
+      <label>Current price<input name="current_price" value="{{ item.current_price or '' }}"></label>
+      <label>Goodwill S&amp;H (blank = estimate)<input name="goodwill_shipping" value="{{ item.goodwill_shipping or '' }}"></label>
+      <label>eBay price (manual override)<input name="ebay_price_manual" value="{{ item.ebay_price_manual or '' }}"></label>
+      <label>Auction end (local time)<input type="datetime-local" name="end_time" value="{{ end_local }}"></label>
+      <label>Target / group<input name="target_name" value="{{ item.target_name or '' }}"></label>
+      <label>Status
+        <select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == 'watching' %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      </label>
+    </div>
+    <label class="muted" style="display:block;margin-top:12px">Notes<textarea name="notes">{{ item.notes or '' }}</textarea></label>
+    <div class="actions"><button>Add item</button><a class="btn secondary" href="{{ url_for('index') }}">Cancel</a></div>
+  </form>
+{% else %}
+  {% set pct = item.profit_pct or 0 %}
+  <div class="panel" style="display:flex;gap:16px;flex-wrap:wrap">
+    {% if item.image_url %}<a href="{{ item.url }}" target="_blank"><img src="{{ item.image_url }}" style="width:160px;height:160px;object-fit:cover;border-radius:8px" alt=""></a>{% endif %}
+    <div style="flex:1;min-width:260px">
+      <h2 style="margin:0 0 6px">{{ item.title }}</h2>
+      <div class="muted">#{{ item.item_id }} · {{ item.category_name or '' }} · source: {{ item.source }} · first seen {{ local_time(item.first_seen) }}</div>
+      <div class="cards" style="margin-top:10px">
+        <div class="card"><b>{{ money(item.buy_price or item.current_price) }}</b><span>Projected buy ({{ item.num_bids or 0 }} bids)</span></div>
+        <div class="card"><b>{{ money(item.total_cost) }}</b><span>Total cost (S&amp;H {{ money(item.goodwill_shipping) }}{{ ' est.' if item.shipping_estimated else '' }})</span></div>
+        <div class="card"><b>{{ money(item.ebay_price_manual or item.ebay_price) }}</b><span>eBay {{ 'manual' if item.ebay_price_manual else (item.ebay_comps or 0)|string + ' comps' }}{% if item.ebay_low %} ({{ money(item.ebay_low) }}–{{ money(item.ebay_high) }}){% endif %}</span></div>
+        <div class="card"><b class="{{ 'pct-good' if pct >= target_pct else 'pct-bad' }}">{{ money(item.est_profit) }} · {{ item.profit_pct | pct }}</b><span>Profit after fees {{ money(item.est_fees) }}</span></div>
+        <div class="card"><b>{{ money(item.max_bid) }}</b><span>Max bid for target ROI</span></div>
+        <div class="card"><b>{{ time_left(item.end_time) }}</b><span>{{ local_time(item.end_time) }}</span></div>
+      </div>
+      <div class="actions">
+        <a class="btn secondary" href="{{ item.url }}" target="_blank">Open on ShopGoodwill ↗</a>
+        {% if item.ebay_url %}<a class="btn secondary" href="{{ item.ebay_url }}" target="_blank">eBay sold comps ↗</a>{% endif %}
+        <form class="inline" method="post" action="{{ url_for('item_refresh', item_id=item.item_id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="secondary">Refresh price</button>
+        </form>
+        <form class="inline" method="post" action="{{ url_for('item_refresh', item_id=item.item_id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="reprice" value="1"><button class="secondary">Refresh + re-price on eBay</button>
+        </form>
+        <form class="inline" method="post" action="{{ url_for('item_delete', item_id=item.item_id) }}" onsubmit="return confirm('Delete this item?')">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="danger">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" class="panel">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <h3 style="margin-top:0">Edit</h3>
+    <div class="grid">
+      <label>Status<select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == item.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+      <label>eBay price – manual override (blank = automatic)<input name="ebay_price_manual" value="{{ item.ebay_price_manual if item.ebay_price_manual is not none else '' }}"></label>
+      <label>eBay search query (used on re-price)<input name="ebay_query" value="{{ item.ebay_query or '' }}"></label>
+      <label>Title<input name="title" value="{{ item.title or '' }}"></label>
+      <label>Listing type<select name="listing_type"><option value="auction" {% if item.listing_type != 'buy_now' %}selected{% endif %}>auction</option><option value="buy_now" {% if item.listing_type == 'buy_now' %}selected{% endif %}>buy now</option></select></label>
+      <label>Current price<input name="current_price" value="{{ item.current_price if item.current_price is not none else '' }}"></label>
+      <label>Minimum bid<input name="minimum_bid" value="{{ item.minimum_bid if item.minimum_bid is not none else '' }}"></label>
+      <label>Buy-now price<input name="buy_now_price" value="{{ item.buy_now_price if item.buy_now_price is not none else '' }}"></label>
+      <label>Bids<input name="num_bids" value="{{ item.num_bids or 0 }}"></label>
+      <label>Goodwill S&amp;H (blank = estimate)<input name="goodwill_shipping" value="{{ item.goodwill_shipping if (item.goodwill_shipping is not none and not item.shipping_estimated) else '' }}"></label>
+      <label>eBay automatic price<input name="ebay_price" value="{{ item.ebay_price if item.ebay_price is not none else '' }}"></label>
+      <label>eBay comparables<input name="ebay_comps" value="{{ item.ebay_comps or 0 }}"></label>
+      <label>Auction end (local time)<input type="datetime-local" name="end_time" value="{{ end_local }}"></label>
+      <label>Target / group<input name="target_name" value="{{ item.target_name or '' }}"></label>
+      <label>Image URL<input name="image_url" value="{{ item.image_url or '' }}"></label>
+      <label>Goodwill URL<input name="url" value="{{ item.url or '' }}"></label>
+    </div>
+    <label class="muted" style="display:block;margin-top:12px">Notes<textarea name="notes">{{ item.notes or '' }}</textarea></label>
+    <label class="muted"><input type="checkbox" name="reset_notifications" value="1"> Re-send this item to Telegram</label>
+    <div class="muted">Telegram: digest {{ local_time(item.notified_at) if item.notified_at else 'not sent' }} · urgent {{ local_time(item.urgent_notified_at) if item.urgent_notified_at else 'not sent' }}</div>
+    <div class="actions"><button>Save</button><a class="btn secondary" href="{{ url_for('index') }}">Back</a></div>
+  </form>
+{% endif %}
+{% endblock %}
